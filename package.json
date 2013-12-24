@@ -1,0 +1,34 @@
+{
+	"name": "nodemon",
+	"version": "0.0.1",
+	"author": "Ondřej Hruška <ondra@ondrovo.com>",
+	"description": "Full-featured system monitor with web interface",
+	"bin": {
+		"nodemon": "./nodemon"
+	},
+	"scripts": {
+		"start": "./nodemon"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/MightyPork/nodemon.git"
+	},
+	"keywords": [
+		"cli",
+		"http",
+		"server"
+	],
+	"dependencies": {
+		"express":             "3.4.x",
+		"socket.io":           "0.9.x",
+		"session.socket.io":   "0.1.x",
+		"connect":             "2.12.x",
+		"http-auth":           "2.0.x"
+	},
+	"license": "MIT",
+	"engines": {
+		"node": ">=0.10.24"
+	}
+}
+
+
