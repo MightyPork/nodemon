@@ -18,64 +18,29 @@ var CORES_FIELDS = [
 
 
 // table of PS fields to be monitored
-var COL=0,LEN=1,HEAD=2,FMT=3;
+var COL=0, LEN=1, HEAD=2, FMT=3, SORT=4, DISP=5;
 
 var PS_FIELDS = [
-	//   col,  len,   header,    formatter   
-	[  'pid',    8,    'PID',         null ],
-	[ 'ppid',    8,   'PPID',         null ],
-	[ 'nice',    4,   'NICE',         null ],
-	[ 'pcpu',    6,   '%CPU',   formatPerc ],
-	[ 'pmem',    6,   '%MEM',   formatPerc ],
-	[ 'time',   12,   'TIME',         null ],
-	[ 'user',   20,   'USER',         null ],
-	[  'tty',   20,    'TTY',         null ],
-	[  'vsz',   12,   'VMEM',  formatMemKB ],
-	[  'rsz',   12,   'RMEM',  formatMemKB ],
-	[    's',    6,  'STATE',  formatState ],
-	[ 'comm',   30,    'CMD',         null ],
-	[  'cmd',    0,   'ARGS',         null ],
+	//   col,  len,   header,    formatter,      sort,    display,   
+	[  'pid',    8,    'PID',         null,     'int',   'number' ],
+	[ 'ppid',    8,   'PPID',         null,     'int',   'number' ],
+	[ 'nice',    4,   'NICE',         null,     'int',   'number' ],
+	[ 'pcpu',    6,   '%CPU',         null,   'float',  'percent' ],
+	[ 'pmem',    6,   '%MEM',         null,   'float',  'percent' ],
+	[ 'user',   20,   'USER',         null,  'string',     'text' ],
+	[  'tty',   20,    'TTY',         null,  'string',     'text' ],
+	[  'vsz',   12,   'VMEM',    memFromKB,     'int',    'bytes' ],
+	[  'rsz',   12,   'RMEM',    memFromKB,     'int',    'bytes' ],
+	[    's',    6,  'STATE',         null,  'string',    'state' ],
+	[ 'comm',   30,    'CMD',         null,  'string',     'text' ],
+	[  'cmd',    0,   'ARGS',         null,  'string',     'text' ],
 ];
 
 
-/* percent formatter */
-function formatPerc(perc) {
-	
-	return perc+' %';
-}
-
-
-/* state formatter */
-function formatState(state) {
-	
-	switch(state) {
-		case 'D': return 'IO wait';
-		case 'R': return 'running';
-		case 'S': return 'sleep';
-		case 'T': return 'stopped';
-		case 'W': return 'paging';
-		case 'X': return 'dead';
-		case 'Z': return 'zombie';
-		default:  return state; /* original value */
-	}
-}
-
-
 /* memory formatter (KB based) */
-function formatMemKB(kbytes) {
+function memFromKB(kbytes) {
 	
-	return formatMemB(kbytes*1000); // ???
-}
-
-
-/* memory formatter (B based) */
-function formatMemB(bytes) {
-	
-	if(bytes > 1073741824*1.3) return (Math.round(( bytes / 1073741824 ) * 100 ) / 100) + ' GiB';
-	if(bytes > 1048576*1.3) return Math.round( bytes / 1048576 ) + ' MiB';
-	if(bytes > 1024*1.3) return Math.round( bytes / 1024 ) + ' KiB';
-		
-	return bytes + ' B';
+	return kbytes*1024;
 }
 
 
@@ -100,7 +65,10 @@ function callProc(handler, data) {
 	data.proc = {
 		headers: [],
 		cols: [],
-		processes: [],
+		sort_modes: [],
+		disp_modes: [],
+		
+		entries: [],
 	};
 	
 	
@@ -109,6 +77,8 @@ function callProc(handler, data) {
 	PS_FIELDS.forEach(function(field, index, array) {
 		data.proc.headers.push( field[HEAD] );
 		data.proc.cols.push( field[COL] );
+		data.proc.sort_modes.push( field[SORT] );
+		data.proc.disp_modes.push( field[DISP] );
 		
 		// add stuff to cols string
 		if(cols.length > 0) cols += ',';
@@ -131,7 +101,7 @@ function callProc(handler, data) {
 			
 			if (value.trim().length==0) return;
 			
-			var process = [];
+			var process = {};//[];
 			
 			for(var i=0,pos=0; i<PS_FIELDS.length; i++) {
 				
@@ -140,12 +110,12 @@ function callProc(handler, data) {
 				
 				var field = value.substring(pos, to);
 				field = format( PS_FIELDS[i][FMT], field.trim() );
-				process.push(field);
+				process[data.proc.cols[i]] = field; //.push(field);
 				
 				pos = to+1;
 			}
 			
-			data.proc.processes.push(process);
+			data.proc.entries.push(process);
 		});
 		
 		callMem(handler, data);
@@ -170,7 +140,7 @@ function callMem(handler, data) {
 			
 			var match = value.match(/([0-9]+)\sB\s(.*) memory/i);
 			
-			data.mem[match[2]] = formatMemB(match[1]);
+			data.mem[match[2]] = match[1]*1;
 			
 		});
 		
@@ -200,13 +170,13 @@ function callDisk(handler, data) {
 			var match = value.match(/([^ ]+)\s+([^ ]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+%)\s+([^ ]+)/i);
 
 			data.disk.push({
-				'drive': match[1],
-				'type': match[2],
-				'total': formatMemB(match[3]),
-				'used': formatMemB(match[4]),
-				'free': formatMemB(match[5]),
-				'pused': formatPerc(match[6].replace('%','').trim()),
-				'mount': match[7],
+				'drive': match[1], // drive
+				'type': match[2],  // filesystem
+				'total': match[3], // total bytes
+				'used': match[4],  // used bytes
+				'free': match[5],  // free bytes
+				'pused': match[6].replace('%','').trim(), // used percent
+				'mount': match[7], // mount point
 			});
 		});
 		
@@ -268,11 +238,11 @@ function callCpu(handler, data) {
 		var match = line.match(/Cpu.*:\s*([0-9.]+)%us,\s*([0-9.]+)%sy,\s*([0-9.]+)%ni,\s*([0-9.]+)%id,\s*([0-9.]+)%wa/i);
 
 		data.cpu = {
-			'user': formatPerc(match[1]),
-			'system': formatPerc(match[2]),
-			'nice': formatPerc(match[3]),
-			'idle': formatPerc(match[4]),
-			'iowait': formatPerc(match[5])
+			'user':   match[1]*1, // user (percent)
+			'system': match[2]*1, // system (percent)
+			'nice':   match[3]*1, // nice (percent)
+			'idle':   match[4]*1, // idle (percent)
+			'iowait': match[5]*1  // iowait (percent)
 		};
 		
 		handler(data);

@@ -1,0 +1,19 @@
+.sort-desc {color: red;}
+.sort-asc {color: blue;}
+
+#proc {
+	border-collapse: collapse;
+	max-width: 100%;
+}
+
+#proc td, #proc th {
+	padding: 4px;
+}
+
+#proc thead tr {
+	background-color: #ddf;
+}
+
+#proc tbody tr:nth-child(2n) {
+	background-color: #eee;
+}

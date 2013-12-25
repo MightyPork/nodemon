@@ -54,4 +54,34 @@ NODEMON = {
 			this.vars.updateHandler = handler;
 		}
 	},
+	
+
+	formatBytes: function(bytes) {
+		
+		if(bytes == 0) return '-';
+		
+		if(bytes > 1073741824*1.3) return (Math.round(( bytes / 1073741824 ) * 100 ) / 100) + '\xA0GiB';
+		if(bytes > 1048576*1.3) return Math.round( bytes / 1048576 ) + '\xA0MiB';
+		if(bytes > 1024*1.3) return Math.round( bytes / 1024 ) + '\xA0KiB';
+		
+		return bytes + '\xA0B';
+	},
+	
+	_stateLookup: {
+		'D': 'IO\xA0wait',
+		'R': 'running',
+		'S': 'sleep',
+		'T': 'stopped',
+		'W': 'paging',
+		'X': 'dead',
+		'Z': 'zombie'
+	},
+	
+	formatProcState: function(state) {
+		return this._stateLookup[state] || state;
+	},
+	
+	formatPerc: function(perc) {
+		return perc+'\xA0%';
+	}
 };
