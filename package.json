@@ -1,6 +1,7 @@
 {
 	"name": "nodemon",
 	"version": "0.0.1",
+	"private": true,
 	"author": "Ondřej Hruška <ondra@ondrovo.com>",
 	"description": "Full-featured system monitor with web interface",
 	"bin": {
@@ -15,8 +16,18 @@
 	},
 	"keywords": [
 		"cli",
-		"http",
-		"server"
+		"monitor",
+		"server",
+		"system",
+		"memory",
+		"cpu"
+	],
+	"bugs": {
+		"url" : "http://github.com/MightyPork/nodemon/issues",
+		"email" : "ondra@ondrovo.com"
+	},
+	"os" : [
+		"linux"
 	],
 	"dependencies": {
 		"express":             "3.4.x",

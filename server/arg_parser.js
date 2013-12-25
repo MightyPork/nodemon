@@ -1,12 +1,4 @@
-
-/**
- * Read command line arguments
- * 
- * @param valueArgs array of allowed argument names that are followed by values
- * @param flagArgs array of allowed flag arguments
- * 
- * @returns object with parsed arguments, flags have true as value.
- */
+// get processed CLI args (key-value, flags).
 function parse(valueArgs, flagArgs) {
 	
 	var args = process.argv.splice(2);
@@ -38,8 +30,9 @@ function parse(valueArgs, flagArgs) {
 	return found;
 }
 
+// merge equivalent args into one (aliases), use defval if none given.
 function uniquify(opts, equal, defval) {
-	var target = equal[0];
+	var target = equal[0]; // first arg is the target name
 	
 	var value = undefined;
 	
@@ -49,14 +42,12 @@ function uniquify(opts, equal, defval) {
 			value = opts[argName];
 			found = true;
 		}
-		delete opts[argName];
+		delete opts[argName]; // remove all the args
 	});
 	
-	if(value == undefined) {
-		value = defval;
-	}
+	if(value == undefined) value = defval; // use defval if none found
 	
-	opts[target] = value;
+	opts[target] = value; // add back the target one
 }
 
 

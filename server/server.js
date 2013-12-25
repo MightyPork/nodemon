@@ -11,13 +11,13 @@ var SessionSockets = require('session.socket.io');
 var http_auth = require('http-auth');
 
 var file_util = require('./file_util.js');
-var stat_util = require('./stat_util.js');
-var arg_util = require('./arg_util.js');
+var monitor = require('./monitor.js');
+var arg_parser = require('./arg_parser.js');
 
 
 
 // process args
-var args = arg_util.parse(
+var args = arg_parser.parse(
 	[ // args with value
 		'-p', '-P', '--port',
 		'-t', '-T', '--theme',
@@ -29,11 +29,11 @@ var args = arg_util.parse(
 	]
 );
 
-arg_util.uniq(args, ['-p', '--port'], 3000);
-arg_util.uniq(args, ['-i', '--interval'], 3);
-arg_util.uniq(args, ['-t', '--theme'], 'default');
-arg_util.uniq(args, ['-a', '--auth'], false);
-arg_util.uniq(args, ['-h', '--help'], false);
+arg_parser.uniq(args, ['-p', '--port'], 3000);
+arg_parser.uniq(args, ['-i', '--interval'], 3);
+arg_parser.uniq(args, ['-t', '--theme'], 'default');
+arg_parser.uniq(args, ['-a', '--auth'], false);
+arg_parser.uniq(args, ['-h', '--help'], false);
 
 if(args['-h']) {
 	
@@ -76,7 +76,7 @@ var sessionStore = new connect.middleware.session.MemoryStore();
 
 var basic_auth = http_auth.basic({
 	realm: 'NODEMON web interface',
-    file: path.join(__dirname, 'auth', 'users.htpasswd'),
+    file: path.join(__dirname, '../auth/users.htpasswd'),
 });
 
 
@@ -94,7 +94,7 @@ app.configure(function () {
 	
 	if(USE_AUTH) app.use(http_auth.connect(basic_auth));
 	
-	app.use(express.static(path.join(__dirname,'client', 'assets')));
+	app.use(express.static(path.join(__dirname,'../client/assets')));
 	
 	var dir = file_util.resolveThemeDir(THEME);
 	console.log('Theme dir: '+dir);
@@ -121,7 +121,7 @@ session_sio.on('connection', function (err, socket, session) {
 	}
 	
 	var sendUpdate = function() {
-		stat_util.collectStats(function(data) {
+		monitor.collectStats(function(data) {
 			socket.emit('update', data);
 		});
 	};

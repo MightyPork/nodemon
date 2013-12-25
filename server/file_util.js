@@ -16,7 +16,7 @@ function fileExists(filename) {
 function resolveThemeDir(theme) {
 	var filepath, stats, base;
 	
-	base = path.join(__dirname, 'client', 'theme');
+	base = path.join(__dirname, '../client/theme');
 	
 	filepath = path.join(base, theme);
 	stats = getStats(filepath);

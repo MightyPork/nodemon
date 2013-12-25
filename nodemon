@@ -1,3 +1,5 @@
 #!/bin/bash
 
-node server.js "$@"
+cd "${BASH_SOURCE%/*}" || exit
+
+node ./server/server.js "$@"
