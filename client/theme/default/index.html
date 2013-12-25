@@ -7,31 +7,18 @@
 
 	<title>NODEMON</title>
 
+	<!-- base assets -->
 	<link href="favicon.ico" rel="shortcut icon">
 	<script src="jquery.js"></script>
 	<script src="jquery-migrate.js"></script>
 	<script src="/socket.io/socket.io.js"></script>
-	<script>
-		var socket = connect();
+	<script src="nodemon.js"></script>
+	
+	<!-- custom code -->
+	<script type="text/javascript">
 		
-		function connect() {
-			console.log('Connecting...');
-			socket = io.connect();
-			
-			socket.on('update', function (data) {
-				console.log(data);
-			});
-			
-			socket.on('disconnect', function () {
-				console.log('Socket closed, trying to reconnect...');
-				setTimeout(function(){
-					socket.socket.reconnect();
-					console.log('Connected.');
-				}, 500);
-			});
-			
-			return socket;
-		}
+		NODEMON.connect();
+		NODEMON.on('update', function(data) {console.log(JSON.stringify(data.cpu));});
 		
 	</script>
 	
