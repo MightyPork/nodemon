@@ -26,7 +26,9 @@ var args = arg_parser.parse(
 	],
 	[ // args without value (flags)
 		'-a','-A','--auth',
-		'-h','--help'
+		'-h','--help',
+		'-f', '--fahrenheit',
+		'-v', '--verbose',
 	]
 );
 
@@ -36,6 +38,8 @@ arg_parser.uniq(args, ['-j', '--idle-interval'], 10);
 arg_parser.uniq(args, ['-t', '--theme'], 'default');
 arg_parser.uniq(args, ['-a', '--auth'], false);
 arg_parser.uniq(args, ['-h', '--help'], false);
+arg_parser.uniq(args, ['-f', '--fahrenheit'], false);
+arg_parser.uniq(args, ['-v', '--verbose'], false);
 
 if(args['-h']) {
 	
@@ -54,6 +58,10 @@ if(args['-h']) {
 		'\tFrontend theme. Defaults to "default".\n\n'+
 		'-a (--auth)\n'+
 		'\tUse authentication (credentials are read from ./auth/users.htpasswd)\n\n'+
+		'-f (--fahrenheit)\n'+
+		'\tPrint temperatures in degrees Fahrenheit instead of Celsius.\n\n'+
+		'-v (--verbose)\n'+
+		'\tPrint extra debug information.\n\n'+
 		'-h (--help)\n'+
 		'\tShow this help.\n\n'+
 		'Autor: Ondřej Hruška, ondra@ondrovo.com'
@@ -66,15 +74,19 @@ GLOBAL.PORT = args['-p']*1;
 GLOBAL.THEME = args['-t'].toString();
 GLOBAL.INTERVAL = Math.max(500, Math.round(args['-i'] * 1000));
 GLOBAL.USE_AUTH = args['-a'];
-GLOBAL.IDLE_INTERVAL = Math.max(5000, Math.round(args['-j'] * 1000))
+GLOBAL.IDLE_INTERVAL = Math.max(5000, Math.round(args['-j'] * 1000));
+GLOBAL.FAHR = args['-f'];
+GLOBAL.VERBOSE = args['-v'];
 
 
 console.log('Initializing nodemon...\n');
-console.log('THEME .......... '+THEME);
+console.log('PORT ........... '+PORT);
+console.log('USE_AUTH ....... '+(USE_AUTH?'YES':'NO'));
 console.log('INTERVAL ....... '+INTERVAL+' ms');
 console.log('IDLE_INTERVAL .. '+IDLE_INTERVAL+' ms');
-console.log('USE_AUTH ....... '+(USE_AUTH?'YES':'NO'));
-console.log('PORT ........... '+PORT);
+console.log('THEME .......... '+THEME);
+console.log('VERBOSE ........ '+(VERBOSE?'YES':'NO'));
+console.log('TEMP_UNIT ...... '+(FAHR?'Fahrenheit':'Celsius'));
 console.log('');
 
 // init auth
@@ -126,6 +138,8 @@ function collectStats_active() {
 	if(sio.sockets.clients().length == 0) return; // no need to poll if none are listening
 	monitor.collectStats(function(data) {
 		last_data = data;
+		
+		if(VERBOSE) console.log("\n\n--- ACTIVE POLL ---\n"+JSON.stringify(last_data,false," "));
 	});
 }
 
@@ -135,6 +149,7 @@ function collectStats_idle() {
 	
 	monitor.collectStats(function(data) {
 		last_data = data;
+		if(VERBOSE) console.log("\n\n--- IDLE POLL ---\n"+JSON.stringify(last_data,false," "));
 	});
 }
 
@@ -169,6 +184,12 @@ session_sio.on('connection', function (err, socket, session) {
 	
 });
 
+console.log('\nServer will start in a few seconds.\n');
 
-server.listen(PORT);
-console.log('\nListening at port '+PORT+'\n');
+var int_id = setInterval(function() {
+	if(last_data != null) {
+		server.listen(PORT);
+		console.log('Listening at port '+PORT+'\n');
+		clearInterval(int_id);
+	}
+}, 500);

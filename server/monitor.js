@@ -1,10 +1,5 @@
 var exec = require('child_process').exec;
-
-var PROC_COMMAND = 'ps --no-headers -wwe -o %cols';
-var MEM_COMMAND = 'vmstat -s -S B | grep memory';
-var DISK_COMMAND = 'df -T --block-size=1';
-var CPU_COMMAND = 'top -b -n 5 -d.05 | grep "Cpu" | tail -n1';
-var CORES_COMMAND = 'cat /proc/cpuinfo';
+var chain = require('./chain.js').chain;
 
 
 // interesting bits from /proc/cpuinfo
@@ -14,6 +9,14 @@ var CORES_FIELDS = [
 	'cache size',
 	'physical id',
 	'core id',
+];
+
+var CORES_FIELDS_ALIASES = [
+	'model',
+	'frequency', // MHz
+	'cache_size',
+	'physical_id',
+	'core_id',
 ];
 
 
@@ -37,6 +40,7 @@ var PS_FIELDS = [
 ];
 
 
+
 /* memory formatter (KB based) */
 function memFromKB(kbytes) {
 	
@@ -51,34 +55,72 @@ function format(formatter, value) {
 }
 
 
-/* start building the update object */
-function collectStats(handler) {
-	
-	callProc(function(data){ handler(data); }, {/*data*/});
+
+/* == execution chains == */
+
+var static_chain = chain(
+	taskProcStatic,
+	taskCores,
+	taskSystem,
+	taskNetwork
+);
+
+var update_chain = chain(
+	taskAddStatic,
+	taskProc,
+	taskCpu,
+	taskMem,
+	taskDisk,
+	taskTemp
+);
+
+
+
+/* collect data that will never change (done only once) */
+var data_static = null;
+function collectStaticData(handler) {
+	data_static = {};
+	static_chain.start(handler, data_static);
 }
 
 
 
-/* proc */
-function callProc(handler, data) {
+/* start building the update object */
+function collectStats(handler) {
 	
-	data.proc = {
-		headers: [],
-		cols: [],
-		sort_modes: [],
-		disp_modes: [],
-		
-		entries: [],
-	};
+	if(data_static == null) {
+		console.log('Collecting static system info...');
+		collectStaticData(function(){
+			collectStats(handler);
+		});
+		return;
+	}
 	
+	update_chain.start(handler, {});
+}
+
+
+
+/* prepare static stuff for proc entry */
+var proc_static = null;
+var proc_cmd_static = null;
+var PROC_COMMAND = 'ps --no-headers -wwe -o %cols'; // cmd base
+function taskProcStatic(callback, obj) {
 	
 	var cols = '';
 	
+	proc_static = {
+		headers:    [],
+		cols:       [],
+		sort_modes: [],
+		disp_modes: [],
+	};
+	
 	PS_FIELDS.forEach(function(field, index, array) {
-		data.proc.headers.push( field[HEAD] );
-		data.proc.cols.push( field[COL] );
-		data.proc.sort_modes.push( field[SORT] );
-		data.proc.disp_modes.push( field[DISP] );
+		proc_static.headers.push( field[HEAD] );
+		proc_static.cols.push( field[COL] );
+		proc_static.sort_modes.push( field[SORT] );
+		proc_static.disp_modes.push( field[DISP] );
 		
 		// add stuff to cols string
 		if(cols.length > 0) cols += ',';
@@ -86,119 +128,80 @@ function callProc(handler, data) {
 		if(field[LEN] != 0) cols += ':' + field[LEN];
 	});
 	
+	proc_cmd_static = PROC_COMMAND.replace('%cols',cols); // command used to fetch processes
 	
-	//sanitize sort
+	callback(obj);
+}
+
+/* add static data to update object */
+function taskAddStatic(callback, obj) {
 	
-	var cmd = PROC_COMMAND.replace('%cols',cols);
+	// add static data
+	for(k in data_static) {
+		obj[k] = data_static[k];
+	}
 	
-	// Run it!
-	exec(cmd, function(err, stdout, stderr) {
-		
-		var lines = stdout.split('\n');
-		
-		// parse all lines
-		lines.forEach(function(value, index, array) {
-			
-			if (value.trim().length==0) return;
-			
-			var process = {};//[];
-			
-			for(var i=0,pos=0; i<PS_FIELDS.length; i++) {
-				
-				var to = undefined;
-				if(i != PS_FIELDS.length-1) to = pos+PS_FIELDS[i][LEN];
-				
-				var field = value.substring(pos, to);
-				field = format( PS_FIELDS[i][FMT], field.trim() );
-				process[data.proc.cols[i]] = field; //.push(field);
-				
-				pos = to+1;
-			}
-			
-			if(!process.args.match(/^\[.*\]$/i)) {
-				var match = process.args.match(/\/?(?:[^/ ]+\/)*([^/ ]+?):?(?: |$)(?:.*$)?/i);
-				
-				if(match != null) process.comm = match[1];
-			}
-			
-			data.proc.entries.push(process);
-		});
-		
-		callMem(handler, data);
-	});
+	callback(obj);
 }
 
 
-/* mem */
-function callMem(handler, data) {
+function taskSystem(callback, obj) {
 	
-	data.mem = {};
+	obj.system = {};
 	
-	exec(MEM_COMMAND, function(err, stdout, stderr) {
+	exec('echo ' +
+			'`uname -s` "|" ' +
+			'`uname -r` "|" ' +
+			'`uname -v` "|" ' +
+			'`uname -m` "|" ' +
+			'`uname -o`'
+			, function(err, stdout, stderr) {
+
+		stdout = stdout.trim();
+		var parts = stdout.split('|');
 		
-		var lines = stdout.split('\n');
+		obj.system.kernel = {
+			name:     parts[0].trim(),
+			release:  parts[1].trim(),
+			version:  parts[2].trim()
+		};
 		
-		lines.forEach(function(value, index, array) {
-			
-			value = value.trim();
-			
-			if(value.length==0) return;
-			
-			var match = value.match(/([0-9]+)\sB\s(.*) memory/i);
-			
-			data.mem[match[2]] = match[1]*1;
-			
-		});
+		obj.system.platform = parts[3].trim();
+		obj.system.name = parts[4].trim();
 		
-		callDisk(handler, data);
-		
+		callback(obj);
 	});
 	
 }
 
 
-/* disk */
-function callDisk(handler, data) {
+function taskNetwork(callback, obj) {
 	
-	data.disk = [];
+	obj.network = {};
 	
-	exec(DISK_COMMAND, function(err, stdout, stderr) {
-		
-		var lines = stdout.split('\n');
-		
-		lines.forEach(function(value, index, array) {
-			
-			if(index==0) return; // skip header
-			
-			value = value.trim(); // skip blank line
-			if (value.length==0) return;
-			
-			var match = value.match(/([^ ]+)\s+([^ ]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+%)\s+([^ ]+)/i);
+	exec('echo ' +
+			'`uname -n` "|" ' +
+			'`curl ipecho.net/plain -m 5`'
+			, function(err, stdout, stderr) {
 
-			data.disk.push({
-				'drive': match[1], // drive
-				'type': match[2],  // filesystem
-				'total': match[3], // total bytes
-				'used': match[4],  // used bytes
-				'free': match[5],  // free bytes
-				'pused': match[6].replace('%','').trim(), // used percent
-				'mount': match[7], // mount point
-			});
-		});
+		stdout = stdout.trim();
+		var parts = stdout.split('|');
 		
-		callCores(handler, data);
+		obj.network = {
+			hostname: parts[0].trim(),
+			ip: parts[1].trim(),
+		};
 		
+		callback(obj);
 	});
-	
 }
-
 
 /* cores */
-function callCores(handler, data) {
+function taskCores(callback, obj) {
 	
-	data.cores = [];
+	obj.cores = [];
 	
-	exec(CORES_COMMAND, function(err, stdout, stderr) {
+	exec('cat /proc/cpuinfo', function(err, stdout, stderr) {
 		
 		var coreBlocks = stdout.split('\n\n');
 		
@@ -221,29 +224,150 @@ function callCores(handler, data) {
 				
 				var k = match[1].trim();
 				var v = match[2].trim();
-				if(CORES_FIELDS.indexOf(k) != -1) core[k] = v;
+				var ind = CORES_FIELDS.indexOf(k);
+				if(ind != -1) core[ CORES_FIELDS_ALIASES[ind] ] = v;
 				
 			});
 			
-			data.cores.push(core);
+			obj.cores.push(core);
 			
 		});
 		
-		callCpu(handler, data);
+		callback(obj);
 	});
 }
 
 
-/* cpu (optional) */
-function callCpu(handler, data) {
+/* proc */
+function taskProc(callback, obj) {
 	
-	exec(CPU_COMMAND, function(err, stdout, stderr) {
+	// add static stuff
+	obj.proc = {};
+	for(k in proc_static) {
+		obj.proc[k] = proc_static[k];
+	}
+	
+	obj.proc.entries = [];
+	
+	//sanitize sort
 		
-		var line = stdout.trim();
+	// Run it!
+	exec(proc_cmd_static, function(err, stdout, stderr) {
+		
+		var lines = stdout.split('\n');
+		
+		// parse all lines
+		lines.forEach(function(value, index, array) {
+			
+			if (value.trim().length==0) return;
+			
+			var process = {};//[];
+			
+			for(var i=0,pos=0; i<PS_FIELDS.length; i++) {
+				
+				var to = undefined;
+				if(i != PS_FIELDS.length-1) to = pos+PS_FIELDS[i][LEN];
+				
+				var field = value.substring(pos, to);
+				field = format( PS_FIELDS[i][FMT], field.trim() );
+				process[obj.proc.cols[i]] = field; //.push(field);
+				
+				pos = to+1;
+			}
+			
+			if(!process.args.match(/^\[.*\]$/i)) {
+				var match = process.args.match(/\/?(?:[^/ ]+\/)*([^/ ]+?):?(?: |$)(?:.*$)?/i);
+				
+				if(match != null) process.comm = match[1];
+			}
+			
+			obj.proc.entries.push(process);
+		});
+		
+		callback(obj);
+	});
+}
 
-		var match = line.match(/Cpu.*:\s*([0-9.]+)%us,\s*([0-9.]+)%sy,\s*([0-9.]+)%ni,\s*([0-9.]+)%id,\s*([0-9.]+)%wa/i);
 
-		data.cpu = {
+/* mem */
+function taskMem(callback, obj) {
+	
+	var mem = {};
+	
+	exec('vmstat -s -S B | grep memory', function(err, stdout, stderr) {
+		
+		var lines = stdout.split('\n');
+		
+		lines.forEach(function(value, index, array) {
+			
+			value = value.trim();
+			
+			if(value.length==0) return;
+			
+			var match = value.match(/([0-9]+)\sB\s(.*) memory/i);
+			
+			mem[match[2]] = match[1]*1;
+			
+		});
+		
+		obj.mem = mem;
+		callback(obj);
+	});
+	
+}
+
+
+/* disk */
+function taskDisk(callback, obj) {
+	
+	obj.disk = [];
+	
+	exec('df -T --block-size=1', function(err, stdout, stderr) {
+		
+		var lines = stdout.split('\n');
+		
+		lines.forEach(function(value, index, array) {
+			
+			if(index==0) return; // skip header
+			
+			value = value.trim(); // skip blank line
+			if (value.length==0) return;
+			
+			var match = value.match(/([^ ]+)\s+([^ ]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+%)\s+([^ ]+)/i);
+
+			obj.disk.push({
+				'drive': match[1], // drive
+				'type': match[2],  // filesystem
+				'total': match[3], // total bytes
+				'used': match[4],  // used bytes
+				'free': match[5],  // free bytes
+				'pused': match[6].replace('%','').trim(), // used percent
+				'mount': match[7], // mount point
+			});
+		});
+		
+		callback(obj);
+	});
+	
+}
+
+
+/* cpu */
+function taskCpu(callback, obj) {
+	
+	exec('top -b -n 3 -d 0.2', function(err, stdout, stderr) {
+		
+		
+		var tops = stdout.split('\n\n\n');
+		var last_top = tops[tops.length-1].trim();
+		var top_parts = last_top.split('\n\n');
+		
+		var sysinfo = top_parts[0].trim();
+		var proctable = top_parts[1].trim();
+		
+		var match = sysinfo.match(/Cpu.*:\s*([0-9.]+)%us,\s*([0-9.]+)%sy,\s*([0-9.]+)%ni,\s*([0-9.]+)%id,\s*([0-9.]+)%wa/i);
+
+		obj.cpu = {
 			'user':   match[1]*1, // user (percent)
 			'system': match[2]*1, // system (percent)
 			'nice':   match[3]*1, // nice (percent)
@@ -251,7 +375,71 @@ function callCpu(handler, data) {
 			'iowait': match[5]*1  // iowait (percent)
 		};
 		
-		handler(data);
+		
+		var proctable_lines = proctable.split('\n');
+		var cpuForPid = {};
+		proctable_lines.forEach(function(line, index, array) {
+			if(index == 0) return; // header
+			
+			var pid = line.substring(0, 5).trim()*1;
+			var cpu = line.substring(40, 45).trim()*1;
+			
+			cpuForPid[pid] = cpu;
+		});
+		
+		obj.proc.entries.forEach(function(entry, index, array) {
+			var cpu = cpuForPid[entry.pid];
+			
+			if(cpu != undefined)
+				entry.pcpu = cpu / obj.cores.length; // divide load by number of cores
+		});
+		
+		callback(obj);
+	});
+}
+
+
+function taskTemp(callback, obj) {
+	exec('sensors' + (FAHR ? ' -f' : ''), function(err, stdout, stderr) {
+		
+		var lines = stdout.split('\n');
+		
+		obj.sensors = {
+			temperature: [],
+			fan: [],
+			voltage: [],
+			power: [],
+			other: [],
+		};
+		
+		lines.forEach(function(line, index, array) {
+			var match = line.match(/([a-z0-9_\-. ,]+):\s*([^(]+)\(/i);
+			if(match == null) return;
+			
+			var name = match[1].trim();
+			var value = match[2].trim();
+			
+			var target = obj.sensors.other;
+			
+			if(value.substring(value.length-1) == 'V')
+				target = obj.sensors.voltage;
+			
+			else if( (value.substring(value.length-2)=='°C') || (value.substring(value.length-2)=='°F') )
+				target = obj.sensors.temperature;
+			
+			else if(value.substring(value.length-3) == 'RPM')
+				target = obj.sensors.fan;
+			
+			else if(value.substring(value.length-1) == 'W')
+				target = obj.sensors.power;
+			
+			target.push({
+				name: name.trim(),
+				value: value.trim()
+			});
+		});
+		
+		callback(obj);
 	});
 }
 
