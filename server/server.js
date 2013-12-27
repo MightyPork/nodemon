@@ -19,9 +19,10 @@ var arg_parser = require('./arg_parser.js');
 // process args
 var args = arg_parser.parse(
 	[ // args with value
-		'-p', '-P', '--port',
-		'-t', '-T', '--theme',
-		'-i', '-I', '--interval',
+		'-p', '--port',
+		'-t', '--theme',
+		'-i', '--interval',
+		'-j', '--idle-interval',
 	],
 	[ // args without value (flags)
 		'-a','-A','--auth',
@@ -31,6 +32,7 @@ var args = arg_parser.parse(
 
 arg_parser.uniq(args, ['-p', '--port'], 3000);
 arg_parser.uniq(args, ['-i', '--interval'], 3);
+arg_parser.uniq(args, ['-j', '--idle-interval'], 10);
 arg_parser.uniq(args, ['-t', '--theme'], 'default');
 arg_parser.uniq(args, ['-a', '--auth'], false);
 arg_parser.uniq(args, ['-h', '--help'], false);
@@ -42,7 +44,10 @@ if(args['-h']) {
 		'nodemon [-i INTERVAL] [-p PORT] [-t THEME] [-a] [-h]\n\n'+
 		'-i INTERVAL (--interval INTERVAL)\n'+
 		'\tSeconds delay between updates, can be floating point (eg. 0.5).\n'+
-		'\tDefaults to 3.\n\n'+
+		'\tDefaults to 3, minimum is 0.5 (s)\n\n'+
+		'-j IDLE_INTERVAL (--idle-interval IDLE_INTERVAL)\n'+
+		'\tDelay between idle updates. Used when no clients are connected.\n'+
+		'\tDefaults to 10, minimum is 5 (s)\n\n'+
 		'-p PORT (--port PORT)\n'+
 		'\tListening port. Defaults to 3000.\n\n'+
 		'-t THEME (--theme THEME)\n'+
@@ -59,16 +64,18 @@ if(args['-h']) {
 
 GLOBAL.PORT = args['-p']*1;
 GLOBAL.THEME = args['-t'].toString();
-GLOBAL.INTERVAL = Math.max(100, Math.round(args['-i'] * 1000));
+GLOBAL.INTERVAL = Math.max(500, Math.round(args['-i'] * 1000));
 GLOBAL.USE_AUTH = args['-a'];
+GLOBAL.IDLE_INTERVAL = Math.max(5000, Math.round(args['-j'] * 1000))
 
 
-console.log('Initializing...');
-console.log('THEME    = '+THEME);
-console.log('INTERVAL = '+INTERVAL+' ms');
-console.log('USE_AUTH = '+(USE_AUTH?'YES':'NO'));
-console.log('PORT     = '+PORT);
-
+console.log('Initializing nodemon...\n');
+console.log('THEME .......... '+THEME);
+console.log('INTERVAL ....... '+INTERVAL+' ms');
+console.log('IDLE_INTERVAL .. '+IDLE_INTERVAL+' ms');
+console.log('USE_AUTH ....... '+(USE_AUTH?'YES':'NO'));
+console.log('PORT ........... '+PORT);
+console.log('');
 
 // init auth
 var cookieParser = express.cookieParser('Polite dino eats greasy lettuce in the bathroom.');
@@ -108,6 +115,33 @@ var sio = socket_io.listen(server);
 var session_sio = new SessionSockets(sio, sessionStore, cookieParser);
 
 sio.set('log level', 1); // disable annoying debug
+sio.set('close timeout', 10);
+
+
+
+var last_data = collectStats_idle();
+
+function collectStats_active() {
+	
+	if(sio.sockets.clients().length == 0) return; // no need to poll if none are listening
+	monitor.collectStats(function(data) {
+		last_data = data;
+	});
+}
+
+function collectStats_idle() {
+	
+	if(sio.sockets.clients().length != 0) return; // active, skip idle poll
+	
+	monitor.collectStats(function(data) {
+		last_data = data;
+	});
+}
+
+setInterval(collectStats_active, INTERVAL);
+setInterval(collectStats_idle, IDLE_INTERVAL);
+
+
 
 
 session_sio.on('connection', function (err, socket, session) {
@@ -121,16 +155,14 @@ session_sio.on('connection', function (err, socket, session) {
 	}
 	
 	var sendUpdate = function() {
-		monitor.collectStats(function(data) {
-			socket.emit('update', data);
-		});
+		socket.emit('update', last_data);
 	};
 	
 	sendUpdate(); // serve initial data
 	
 	var id = setInterval(sendUpdate, INTERVAL);
 	
-	socket.on('close', function() {
+	socket.on('disconnect', function() {
 		console.log('Socket closed.');
 		clearInterval(id);
 	});
@@ -139,4 +171,4 @@ session_sio.on('connection', function (err, socket, session) {
 
 
 server.listen(PORT);
-console.log('\nListening at port '+PORT);
+console.log('\nListening at port '+PORT+'\n');

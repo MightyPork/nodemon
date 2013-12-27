@@ -23,7 +23,7 @@ var COL=0, LEN=1, HEAD=2, FMT=3, SORT=4, DISP=5;
 var PS_FIELDS = [
 	//   col,  len,   header,    formatter,      sort,    display,   
 	[  'pid',    8,    'PID',         null,     'int',   'number' ],
-	[ 'ppid',    8,   'PPID',         null,     'int',   'number' ],
+//	[ 'ppid',    8,   'PPID',         null,     'int',   'number' ],
 	[ 'nice',    4,   'NICE',         null,     'int',   'number' ],
 	[ 'pcpu',    6,   '%CPU',         null,   'float',  'percent' ],
 	[ 'pmem',    6,   '%MEM',         null,   'float',  'percent' ],
@@ -33,7 +33,7 @@ var PS_FIELDS = [
 	[  'rsz',   12,   'RMEM',    memFromKB,     'int',    'bytes' ],
 	[    's',    6,  'STATE',         null,  'string',    'state' ],
 	[ 'comm',   30,    'CMD',         null,  'string',     'text' ],
-	[  'cmd',    0,   'ARGS',         null,  'string',     'text' ],
+	[ 'args',    0,   'ARGS',         null,  'string',     'text' ],
 ];
 
 
@@ -113,6 +113,12 @@ function callProc(handler, data) {
 				process[data.proc.cols[i]] = field; //.push(field);
 				
 				pos = to+1;
+			}
+			
+			if(!process.args.match(/^\[.*\]$/i)) {
+				var match = process.args.match(/\/?(?:[^/ ]+\/)*([^/ ]+?):?(?: |$)(?:.*$)?/i);
+				
+				if(match != null) process.comm = match[1];
 			}
 			
 			data.proc.entries.push(process);

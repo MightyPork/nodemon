@@ -5,7 +5,6 @@ var sort = {
 	dir: 1 // 1 asc, -1 desc
 };
 
-var lastUpdateId = 0;
 var updateId = 1;
 
 var procRows = {};
@@ -15,7 +14,6 @@ NODEMON.on('update', function(data) {
 	if(updateId==1) $('#loading').hide();
 	
 	updateProcTable(data.proc);
-	lastUpdateId = updateId;
 	updateId++;
 });
 
@@ -102,9 +100,9 @@ function updateProcTable(proc) {
 			td = row.find('td.'+proc.cols[i]);
 			val = entry[proc.cols[i]];
 			
+			// value for sorting
 			var sortValue = 0;
 			switch(proc.disp_modes[i]) {
-				
 				case 'percent': sortValue = val*1; break;
 				case 'bytes':  sortValue = val*1; break;
 				case 'number': sortValue = val*1; break;
@@ -113,13 +111,11 @@ function updateProcTable(proc) {
 				case 'text':
 				default:       sortValue = val; break;
 			}
-			
 			td.data('sort-value', sortValue);
 			
 			
-			
+			// displayed text
 			text = '';
-			
 			switch(proc.disp_modes[i]) {
 				case 'percent': text = NODEMON.formatPerc(val); break;
 				case 'bytes':   text = NODEMON.formatBytes(val); break;
@@ -129,13 +125,13 @@ function updateProcTable(proc) {
 				case 'text':
 				default:        text = val; break;
 			}
-			
 			if(td.text() != text) td.text(text);
 		};
 		
 		row.data('upd',updateId);
 	};
 	
+	// remove processes that died since last update
 	for(var pid in procRows) {
 		row = procRows[pid];
 		if(row.data('upd') != updateId) {

@@ -23,7 +23,7 @@ NODEMON = {
 		vars.socket = io.connect();
 		
 		vars.socket.on('update', function (data) {
-			if(!vars.paused && typeof vars.updateHandler == 'function') {
+			if(!vars.paused && data != null && typeof vars.updateHandler == 'function') {
 				vars.updateHandler(data);
 			}
 		});
@@ -32,7 +32,7 @@ NODEMON = {
 		
 			console.log('Disconnected, trying to reconnect...');
 			
-			// wait a bit
+			// wait a bit & try to re-connect
 			setTimeout(function(){
 				vars.socket.socket.reconnect();
 				console.log('Connected.');
@@ -49,12 +49,12 @@ NODEMON = {
 		this.vars.paused = false;
 	},
 	
+	// bind handler ('update' event only, for now)
 	on: function(event, handler) {
 		if(event == 'update') {
 			this.vars.updateHandler = handler;
 		}
 	},
-	
 
 	formatBytes: function(bytes) {
 		
