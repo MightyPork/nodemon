@@ -1,6 +1,6 @@
 {
 	"name": "nodemon",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"private": true,
 	"author": "Ondřej Hruška <ondra@ondrovo.com>",
 	"description": "Full-featured system monitor with web interface",
