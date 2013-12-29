@@ -14,6 +14,7 @@ var http_auth = require('http-auth');
 var monitor = require('./monitor.js');
 var arg_parser = require('./arg_parser.js');
 
+var VERSION = '0.1.0';
 
 
 // process args
@@ -28,32 +29,41 @@ var args = arg_parser.parse(
 		'-a','-A','--auth',
 		'-h','--help',
 		'-f', '--fahrenheit',
-		'-v', '--verbose',
+		'-w', '--verbose',
+		'-v', '--version',
 	]
 );
 
 arg_parser.uniq(args, ['-p', '--port'], 3000);
-arg_parser.uniq(args, ['-i', '--interval'], 3);
-arg_parser.uniq(args, ['-j', '--idle-interval'], 10);
+arg_parser.uniq(args, ['-i', '--interval'], 5);
+arg_parser.uniq(args, ['-j', '--idle-interval'], 15);
 arg_parser.uniq(args, ['-t', '--theme'], 'default');
 arg_parser.uniq(args, ['-a', '--auth'], false);
 arg_parser.uniq(args, ['-h', '--help'], false);
 arg_parser.uniq(args, ['-f', '--fahrenheit'], false);
-arg_parser.uniq(args, ['-v', '--verbose'], false);
+arg_parser.uniq(args, ['-w', '--verbose'], false);
+arg_parser.uniq(args, ['-v', '--version'], false);
+
+if(args['-v']) {
+	sonsole.log('Nodemon v'+VERSION);
+	process.exit(0);
+}
 
 if(args['-h']) {
 	
 	console.log(
+		'Nodemon v'+VERSION+'\n'+
+		'\n'+
 		'Usage:\n'+
 		'nodemon [-i INTERVAL] [-p PORT] [-t THEME] [-a] [-h]\n\n'+
 		
 		'-i INTERVAL (--interval INTERVAL)\n'+
 		'\tSeconds delay between updates, can be floating point (eg. 0.5).\n'+
-		'\tDefaults to 3, minimum is 0.5 (s)\n\n'+
+		'\tDefaults to 5, minimum is 0.5 (s)\n\n'+
 		
 		'-j IDLE_INTERVAL (--idle-interval IDLE_INTERVAL)\n'+
 		'\tDelay between idle updates. Used when no clients are connected.\n'+
-		'\tDefaults to 10, minimum is 5 (s)\n\n'+
+		'\tDefaults to 15, minimum is 5 (s)\n\n'+
 		
 		'-p PORT (--port PORT)\n'+
 		'\tListening port. Defaults to 3000.\n\n'+
@@ -69,11 +79,14 @@ if(args['-h']) {
 		'-f (--fahrenheit)\n'+
 		'\tPrint temperatures in degrees Fahrenheit instead of Celsius.\n\n'+
 		
-		'-v (--verbose)\n'+
+		'-w (--verbose)\n'+
 		'\tPrint extra debug information.\n\n'+
 		
+		'-v (--version)\n'+
+		'\tShow version and exit.\n\n'+
+		
 		'-h (--help)\n'+
-		'\tShow this help.\n\n'+
+		'\tShow this help and exit.\n\n'+
 		
 		'Autor: Ondřej Hruška, ondra@ondrovo.com, @MightyPork'
 	);
@@ -167,6 +180,7 @@ function collectStats_idle() {
 	
 	monitor.collectStats(function(data) {
 		last_data = data;
+		//console.log(JSON.stringify(last_data,null, " "));
 		if(VERBOSE) console.log("\n\n--- IDLE POLL ---\n"+JSON.stringify(last_data,false," "));
 	});
 }

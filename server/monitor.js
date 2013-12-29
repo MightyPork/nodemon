@@ -7,14 +7,16 @@ var CORES_FIELDS = [
 	'model name',
 	'cpu MHz',
 	'cache size',
+	'processor',
 	'physical id',
 	'core id',
 ];
 
 var CORES_FIELDS_ALIASES = [
 	'model',
-	'frequency', // MHz
+	'freq_mhz', // MHz
 	'cache_size',
+	'number',
 	'physical_id',
 	'core_id',
 ];
@@ -25,18 +27,20 @@ var COL=0, LEN=1, HEAD=2, FMT=3, SORT=4, DISP=5;
 
 var PS_FIELDS = [
 	//   col,  len,   header,    formatter,      sort,    display,   
-	[  'pid',    8,    'PID',         null,     'int',   'number' ],
-//	[ 'ppid',    8,   'PPID',         null,     'int',   'number' ],
-	[ 'nice',    4,   'NICE',         null,     'int',   'number' ],
-	[ 'pcpu',    6,   '%CPU',         null,   'float',  'percent' ],
-	[ 'pmem',    6,   '%MEM',         null,   'float',  'percent' ],
-	[ 'user',   20,   'USER',         null,  'string',     'text' ],
-	[  'tty',   20,    'TTY',         null,  'string',     'text' ],
-	[  'vsz',   12,   'VMEM',    memFromKB,     'int',    'bytes' ],
-	[  'rsz',   12,   'RMEM',    memFromKB,     'int',    'bytes' ],
-	[    's',    6,  'STATE',         null,  'string',    'state' ],
-	[ 'comm',   30,    'CMD',         null,  'string',     'text' ],
-	[ 'args',    0,   'ARGS',         null,  'string',     'text' ],
+	[    'pid',    8,    'PID',         null,     'int',   'number' ],
+	[   'ppid',    8,   'PPID',         null,     'int',   'number' ],
+	[   'nice',    4,   'NICE',         null,     'int',   'number' ],
+	[    'pri',    4,    'PRI',         null,     'int',   'number' ],
+	[   'pcpu',    6,   '%CPU',         null,   'float',  'percent' ],
+	[   'pmem',    6,   '%MEM',         null,   'float',  'percent' ],
+	[    'uid',    8,    'UID',         null,     'int',   'number' ],
+	[   'user',   20,   'USER',         null,  'string',     'text' ],
+	[    'tty',   20,    'TTY',         null,  'string',     'text' ],
+	[    'vsz',   12,   'VMEM',    memFromKB,     'int',    'bytes' ],
+	[    'rsz',   12,   'RMEM',    memFromKB,     'int',    'bytes' ],
+	[  'state',    6,  'STATE',         null,  'string',    'state' ],
+	[   'comm',   30,    'CMD',         null,  'string',     'text' ],
+	[   'args',    0,   'ARGS',         null,  'string',     'text' ],
 ];
 
 
@@ -60,18 +64,19 @@ function format(formatter, value) {
 
 var static_chain = chain(
 	taskProcStatic,
-	taskCores,
 	taskSystem,
 	taskNetwork
 );
 
 var update_chain = chain(
 	taskAddStatic,
+	taskCores,
 	taskProc,
 	taskCpu,
-	taskMem,
-	taskDisk,
-	taskTemp
+	taskMemory,
+	taskDisks,
+	taskSensors,
+	taskUptime
 );
 
 
@@ -110,17 +115,20 @@ function taskProcStatic(callback, obj) {
 	var cols = '';
 	
 	proc_static = {
-		headers:    [],
-		cols:       [],
-		sort_modes: [],
-		disp_modes: [],
+		layout: {},
+		order: [],
 	};
 	
 	PS_FIELDS.forEach(function(field, index, array) {
-		proc_static.headers.push( field[HEAD] );
-		proc_static.cols.push( field[COL] );
-		proc_static.sort_modes.push( field[SORT] );
-		proc_static.disp_modes.push( field[DISP] );
+		
+		proc_static.layout[ field[COL] ] = {
+			header: field[HEAD],
+			col: field[COL],
+			sort_mode: field[SORT],
+			disp_mode:  field[DISP]
+		};
+		
+		proc_static.order.push( field[COL] );
 		
 		// add stuff to cols string
 		if(cols.length > 0) cols += ',';
@@ -209,7 +217,7 @@ function taskCores(callback, obj) {
 		
 			cb = cb.trim();
 			
-			if(cb.length==0) return; // skip blank core block
+			if(cb.length==0) return; // continue next
 			
 			var lines = cb.split('\n');
 			var core = {};
@@ -218,9 +226,10 @@ function taskCores(callback, obj) {
 				
 				line = line.trim();
 				
-				if (line.length==0) return; // skip blank line
+				if (line.length==0) return; // continue next
 				
 				var match = line.match(/([^:]+):(.*)/i);
+				if(match == null) return; // continue next
 				
 				var k = match[1].trim();
 				var v = match[2].trim();
@@ -261,20 +270,21 @@ function taskProc(callback, obj) {
 			
 			if (value.trim().length==0) return;
 			
-			var process = {};//[];
+			var process = {};
 			
-			for(var i=0,pos=0; i<PS_FIELDS.length; i++) {
+			for(var i=0, pos=0; i<PS_FIELDS.length; i++) {
 				
 				var to = undefined;
-				if(i != PS_FIELDS.length-1) to = pos+PS_FIELDS[i][LEN];
+				if(i != PS_FIELDS.length-1) to = pos + PS_FIELDS[i][LEN];
 				
 				var field = value.substring(pos, to);
 				field = format( PS_FIELDS[i][FMT], field.trim() );
-				process[obj.proc.cols[i]] = field; //.push(field);
+				process[ PS_FIELDS[i][COL] ] = field;
 				
 				pos = to+1;
 			}
 			
+			// try to get better value for "comm"
 			if(!process.args.match(/^\[.*\]$/i)) {
 				var match = process.args.match(/\/?(?:[^/ ]+\/)*([^/ ]+?):?(?: |$)(?:.*$)?/i);
 				
@@ -290,9 +300,9 @@ function taskProc(callback, obj) {
 
 
 /* mem */
-function taskMem(callback, obj) {
+function taskMemory(callback, obj) {
 	
-	var mem = {};
+	var memory = {};
 	
 	exec('vmstat -s -S B | grep memory', function(err, stdout, stderr) {
 		
@@ -302,15 +312,16 @@ function taskMem(callback, obj) {
 			
 			value = value.trim();
 			
-			if(value.length==0) return;
+			if(value.length==0) return; // continue next
 			
 			var match = value.match(/([0-9]+)\sB\s(.*) memory/i);
+			if(match == null) return; // continue next
 			
-			mem[match[2]] = match[1]*1;
+			memory[match[2]] = match[1]*1;
 			
 		});
 		
-		obj.mem = mem;
+		obj.memory = memory;
 		callback(obj);
 	});
 	
@@ -318,11 +329,11 @@ function taskMem(callback, obj) {
 
 
 /* disk */
-function taskDisk(callback, obj) {
+function taskDisks(callback, obj) {
 	
-	obj.disk = [];
+	obj.disks = [];
 	
-	exec('df -T --block-size=1', function(err, stdout, stderr) {
+	exec('df -T --block-size=1 -x tmpfs -x devtmpfs', function(err, stdout, stderr) {
 		
 		var lines = stdout.split('\n');
 		
@@ -334,8 +345,10 @@ function taskDisk(callback, obj) {
 			if (value.length==0) return;
 			
 			var match = value.match(/([^ ]+)\s+([^ ]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+%)\s+([^ ]+)/i);
-
-			obj.disk.push({
+	
+			if(match == null) return;
+			
+			obj.disks.push({
 				'drive': match[1], // drive
 				'type': match[2],  // filesystem
 				'total': match[3], // total bytes
@@ -344,6 +357,10 @@ function taskDisk(callback, obj) {
 				'pused': match[6].replace('%','').trim(), // used percent
 				'mount': match[7], // mount point
 			});
+		});
+		
+		obj.disks.sort(function(a, b) {
+			return ((a.drive < b.drive) ? -1 : ((a.drive > b.drive) ? 1 : 0));
 		});
 		
 		callback(obj);
@@ -362,19 +379,26 @@ function taskCpu(callback, obj) {
 		var last_top = tops[tops.length-1].trim();
 		var top_parts = last_top.split('\n\n');
 		
+		if(top_parts.length != 2) {
+			console.log('Bad TOP output format.');
+			callback(obj); // go no
+		}
+		
 		var sysinfo = top_parts[0].trim();
 		var proctable = top_parts[1].trim();
 		
 		var match = sysinfo.match(/Cpu.*:\s*([0-9.]+)%us,\s*([0-9.]+)%sy,\s*([0-9.]+)%ni,\s*([0-9.]+)%id,\s*([0-9.]+)%wa/i);
 
-		obj.cpu = {
-			'user':   match[1]*1, // user (percent)
-			'system': match[2]*1, // system (percent)
-			'nice':   match[3]*1, // nice (percent)
-			'idle':   match[4]*1, // idle (percent)
-			'iowait': match[5]*1  // iowait (percent)
-		};
 		
+		if(match != null) {
+			obj.cpu = {
+				'user':   match[1]*1, // user (percent)
+				'system': match[2]*1, // system (percent)
+				'nice':   match[3]*1, // nice (percent)
+				'idle':   match[4]*1, // idle (percent)
+				'iowait': match[5]*1  // iowait (percent)
+			};
+		}
 		
 		var proctable_lines = proctable.split('\n');
 		var cpuForPid = {};
@@ -390,7 +414,7 @@ function taskCpu(callback, obj) {
 		obj.proc.entries.forEach(function(entry, index, array) {
 			var cpu = cpuForPid[entry.pid];
 			
-			if(cpu != undefined)
+			if(cpu !== undefined)
 				entry.pcpu = cpu / obj.cores.length; // divide load by number of cores
 		});
 		
@@ -399,14 +423,14 @@ function taskCpu(callback, obj) {
 }
 
 
-function taskTemp(callback, obj) {
+function taskSensors(callback, obj) {
 	exec('sensors' + (FAHR ? ' -f' : ''), function(err, stdout, stderr) {
 		
 		var lines = stdout.split('\n');
 		
 		obj.sensors = {
 			temperature: [],
-			fan: [],
+			cooling: [],
 			voltage: [],
 			power: [],
 			other: [],
@@ -421,26 +445,60 @@ function taskTemp(callback, obj) {
 			
 			var target = obj.sensors.other;
 			
-			if(value.substring(value.length-1) == 'V')
+			if(value.substring(value.length-1) == 'V') {
+				
 				target = obj.sensors.voltage;
+				
+			} else if( (value.substring(value.length-2)=='°C') || (value.substring(value.length-2)=='°F') ) {
+				
+				if(value.charAt(0) == '+') value = value.substring(1);
+				
+				if(value.charAt(0) == '-'||value == '0.0°C'||value == '0.0°F') {
+					target = null;
+				} else {
+					target = obj.sensors.temperature;
+				}
 			
-			else if( (value.substring(value.length-2)=='°C') || (value.substring(value.length-2)=='°F') )
-				target = obj.sensors.temperature;
+			} else if(value.substring(value.length-3) == 'RPM') {
+				target = obj.sensors.cooling;
 			
-			else if(value.substring(value.length-3) == 'RPM')
-				target = obj.sensors.fan;
-			
-			else if(value.substring(value.length-1) == 'W')
+			} else if(value.substring(value.length-1) == 'W') {
+				
 				target = obj.sensors.power;
+				
+			}
 			
-			target.push({
-				name: name.trim(),
-				value: value.trim()
-			});
+			if(target != null) {
+				target.push({
+					name: name.trim(),
+					value: value.trim()
+				});
+			}
 		});
 		
 		callback(obj);
 	});
+}
+
+/* disk */
+function taskUptime(callback, obj) {
+	
+	exec('uptime', function(err, stdout, stderr) {
+		
+		stdout = stdout.trim();
+		var match = stdout.match(/.*up\s*(.*?),\s*([0-9]+\s+users?),\s*load averages?:\s*([0-9.]+),\s*([0-9.]+),\s*([0-9.]+).*/i);
+
+		if(match != null) {
+			obj.system.uptime = match[1];
+			obj.system.users = match[2];
+			obj.system.load1 = Math.round((match[3]/obj.cores.length)*1000)/10;
+			obj.system.load5 = Math.round((match[4]/obj.cores.length)*1000)/10;
+			obj.system.load15 = Math.round((match[5]/obj.cores.length)*1000)/10;
+		}
+		
+		callback(obj);
+	});
+	
 }
 
 

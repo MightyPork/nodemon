@@ -24,15 +24,98 @@
 </head>
 <body>
 
-<p id="loading">Loading, please wait...</p>
+<div id="tablebox">
 
-<table id="proc">
-	<thead>
-		<tr></tr>
-	</thead>
-	<tbody>
-	</tbody>
-</table>
+	<p id="loading">Loading, please wait...</p>
+	<table id="proc" style="display: none;">
+		<thead>
+			<tr>
+			</tr>
+		</thead>
+		<tbody>
+		</tbody>
+	</table>
+	
+</div>
+
+<div id="sidebar">
+	<div class="sb-box">
+		<div id="nodemon-logo">Nodemon</div>
+		<div id="nodemon-logo-2">System monitor</div>
+	</div>
+	
+	<div class="sb-box">
+		<div class="sb-box-title">System info</div>
+		<table class="sb-box-table sb-box-content" id="table-system">
+			<tbody>
+<!--			<tr><td class="sb-box-table-key">Key</td><td class="sb-box-table-value">Value</td></tr>-->
+			</tbody>
+		</table>
+	</div>
+	
+	<div class="sb-box">
+		<div class="sb-box-title">Resources</div>
+		<div class="sb-box-content">
+		
+			<div id="container-resource-meters">
+				
+<!--
+				<div class="usage-bar cpu">
+					<div class="usage-bar-fill" style="width: 30%;"></div>
+					<div class="usage-bar-label left">CPU</div>
+					<div class="usage-bar-label right">30%</div>
+				</div>
+				
+				<div class="usage-bar ram">
+					<div class="usage-bar-fill" style="width: 65%;"></div>
+					<div class="usage-bar-label left">RAM</div>
+					<div class="usage-bar-label right">65%</div>
+				</div>
+-->
+				
+			</div>
+			
+			<div class="core-box" id="container-cores">
+<!--			
+				<div class="core">
+					<div class="core-name">Core 1</div>
+					<div class="core-freq">1200 MHz</div>
+				</div>
+				<div class="core">
+					<div class="core-name">Core 2</div>
+					<div class="core-freq">900 MHz</div>
+				</div>
+-->
+			</div>
+			
+		</div>
+	</div>
+	
+	<div class="sb-box">
+		<div class="sb-box-title">Disks</div>
+		<div class="sb-box-content" id="container-disk-meters">
+			
+<!--		
+			<div class="usage-bar disk">
+				<div class="usage-bar-fill" style="width: 5%;"></div>
+				<div class="usage-bar-label left">/home</div>
+				<div class="usage-bar-label right">5%</div>
+			</div>
+-->
+		</div>
+	</div>
+	
+	<div class="sb-box">
+		<div class="sb-box-title">Sensors</div>
+		<table class="sb-box-table sb-box-content" id="table-sensors">
+			<tbody>
+<!--				<tr><td class="sb-box-table-key">CPU Temperature</td><td class="sb-box-table-value">13°C</td></tr>
+				<tr><td class="sb-box-table-key">Chasis FAN Speed</td><td class="sb-box-table-value">700 RPM</td></tr>-->
+			</tbody>
+		</table>
+	</div>
+	
+</div>
 
 </body>
 </html>

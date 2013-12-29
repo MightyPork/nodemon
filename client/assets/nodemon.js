@@ -82,6 +82,6 @@ NODEMON = {
 	},
 	
 	formatPerc: function(perc) {
-		return perc+'\xA0%';
+		return Math.round(perc*1)+'\xA0%';
 	}
 };
