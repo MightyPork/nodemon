@@ -34,7 +34,7 @@
 		"socket.io":           "0.9.x",
 		"session.socket.io":   "0.1.x",
 		"connect":             "2.12.x",
-		"http-auth":           "2.0.x"
+		"http-auth":           "2.1.x"
 	},
 	"license": "MIT",
 	"engines": {

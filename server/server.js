@@ -3,6 +3,7 @@ var http = require('http');
 var express = require('express');
 var url = require('url');
 var path = require('path');
+var fs = require('fs');
 
 var socket_io = require('socket.io');
 var connect = require('connect');
@@ -10,7 +11,6 @@ var SessionSockets = require('session.socket.io');
 
 var http_auth = require('http-auth');
 
-var file_util = require('./file_util.js');
 var monitor = require('./monitor.js');
 var arg_parser = require('./arg_parser.js');
 
@@ -46,25 +46,36 @@ if(args['-h']) {
 	console.log(
 		'Usage:\n'+
 		'nodemon [-i INTERVAL] [-p PORT] [-t THEME] [-a] [-h]\n\n'+
+		
 		'-i INTERVAL (--interval INTERVAL)\n'+
 		'\tSeconds delay between updates, can be floating point (eg. 0.5).\n'+
 		'\tDefaults to 3, minimum is 0.5 (s)\n\n'+
+		
 		'-j IDLE_INTERVAL (--idle-interval IDLE_INTERVAL)\n'+
 		'\tDelay between idle updates. Used when no clients are connected.\n'+
 		'\tDefaults to 10, minimum is 5 (s)\n\n'+
+		
 		'-p PORT (--port PORT)\n'+
 		'\tListening port. Defaults to 3000.\n\n'+
+		
 		'-t THEME (--theme THEME)\n'+
-		'\tFrontend theme. Defaults to "default".\n\n'+
+		'\tPrimary front-end theme. Other themes are available in "directories"\n'+
+		'\tprovided by the server, eg. localhost:3000/otherTheme.\n\n'+
+		
 		'-a (--auth)\n'+
-		'\tUse authentication (credentials are read from ./auth/users.htpasswd)\n\n'+
+		'\tEnable authentication (credentials are read from ./auth/users.htpasswd)\n'+
+		'\tUse "htpasswd" command to manage the logins ("man htpasswd" for help)\n\n'+
+		
 		'-f (--fahrenheit)\n'+
 		'\tPrint temperatures in degrees Fahrenheit instead of Celsius.\n\n'+
+		
 		'-v (--verbose)\n'+
 		'\tPrint extra debug information.\n\n'+
+		
 		'-h (--help)\n'+
 		'\tShow this help.\n\n'+
-		'Autor: Ondřej Hruška, ondra@ondrovo.com'
+		
+		'Autor: Ondřej Hruška, ondra@ondrovo.com, @MightyPork'
 	);
 	
 	process.exit(0);
@@ -113,11 +124,18 @@ app.configure(function () {
 	
 	if(USE_AUTH) app.use(http_auth.connect(basic_auth));
 	
-	app.use(express.static(path.join(__dirname,'../client/assets')));
+	console.log();
+	console.log('Adding theme path: / (theme "'+THEME+'")');
+	app.use('/', express.static(path.join(__dirname,'../client/assets')));
+	app.use('/', express.static(path.join(__dirname,'../client/themes',THEME)));
 	
-	var dir = file_util.resolveThemeDir(THEME);
-	console.log('Theme dir: '+dir);
-	app.use(express.static(dir));
+	var paths = fs.readdirSync(path.join(__dirname,'../client/themes'));
+	paths.forEach(function(name, index, array) {
+		console.log('Adding theme path: /'+name);
+		app.use('/'+name, express.static(path.join(__dirname,'../client/assets')));
+		app.use('/'+name, express.static(path.join(__dirname,'../client/themes',name)));
+	});
+	console.log();
 });
 
 
