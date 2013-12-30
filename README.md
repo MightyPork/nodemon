@@ -3,6 +3,7 @@ nodemon
 
 Full-featured system monitor with web interface
 
+![Screenshot](https://raw.github.com/MightyPork/nodemon/master/screenshot_v0-1-0.png)
 
 Installation
 ------------
