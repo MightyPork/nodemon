@@ -220,7 +220,7 @@ console.log('\nServer will start in a few seconds.\n');
 
 var int_id = setInterval(function() {
 	if(last_data != null) {
-		server.listen(PORT);
+		server.listen(PORT, "0.0.0.0");
 		console.log('Listening at port '+PORT+'\n');
 		clearInterval(int_id);
 	}
