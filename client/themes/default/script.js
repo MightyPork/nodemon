@@ -266,7 +266,7 @@ function updateResourceMeters(data) {
 		$('<div>').addClass('usage-bar-label right').attr('id','meter-ram-value').appendTo(bar);
 	}
 	
-	var cpu = Math.round((data.cpu.user+data.cpu.system)*1);
+	var cpu = Math.round((data.cpu)*1);
 	$('#meter-cpu-fill').css('width', cpu+'%');
 	$('#meter-cpu-value').text(NODEMON.formatPerc(cpu));
 	

@@ -45,7 +45,7 @@ arg_parser.uniq(args, ['-w', '--verbose'], false);
 arg_parser.uniq(args, ['-v', '--version'], false);
 
 if(args['-v']) {
-	sonsole.log('Nodemon v'+VERSION);
+	console.log('Nodemon v'+VERSION);
 	process.exit(0);
 }
 

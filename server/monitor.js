@@ -58,6 +58,10 @@ function format(formatter, value) {
 	return value;
 }
 
+/* Comma to period in number string. */
+function fixComma(str) {
+	return str.replace(',', '.').replace(/[^0-9.]+/g, '');
+}
 
 
 /* == execution chains == */
@@ -348,7 +352,7 @@ function taskDisks(callback, obj) {
 	
 			if(match == null) return;
 			
-			obj.disks.push({
+			var arr = {
 				'drive': match[1], // drive
 				'type': match[2],  // filesystem
 				'total': match[3], // total bytes
@@ -356,7 +360,18 @@ function taskDisks(callback, obj) {
 				'free': match[5],  // free bytes
 				'pused': match[6].replace('%','').trim(), // used percent
 				'mount': match[7], // mount point
+			};
+			
+			var bad = false;
+			obj.disks.forEach(function(value) {
+				
+				if(value.mount == arr.mount) {
+					bad = true;
+				}
+				
 			});
+			
+			if(!bad) obj.disks.push(arr);
 		});
 		
 		obj.disks.sort(function(a, b) {
@@ -372,10 +387,25 @@ function taskDisks(callback, obj) {
 /* cpu */
 function taskCpu(callback, obj) {
 	
+	exec('mpstat 2 1', function(err, stdout, stderr) {
+
+		var match = stdout.match(/all .*?([0-9.,]+)\n/i);
+		
+		if(match != null && match[1] != undefined) {
+			obj.cpu = 100.0 - fixComma(match[1]);
+		}
+		
+		callback(obj);
+	});
+}
+
+
+/* cpu using TOP */
+function taskCpu_old(callback, obj) {
+	
 	exec('top -b -n 3 -d 0.2', function(err, stdout, stderr) {
 		
-		
-		var tops = stdout.split('\n\n\n');
+		var tops = stdout.split('\n\ntop');
 		var last_top = tops[tops.length-1].trim();
 		var top_parts = last_top.split('\n\n');
 		
@@ -387,26 +417,33 @@ function taskCpu(callback, obj) {
 		var sysinfo = top_parts[0].trim();
 		var proctable = top_parts[1].trim();
 		
-		var match = sysinfo.match(/Cpu.*:\s*([0-9.]+)%us,\s*([0-9.]+)%sy,\s*([0-9.]+)%ni,\s*([0-9.]+)%id,\s*([0-9.]+)%wa/i);
+		
+		var match = sysinfo.match(/Cpu.*:\s*([0-9.,]+).us,\s*([0-9.,]+).sy,\s*([0-9.,]+).ni,\s*([0-9.,]+).id,\s*([0-9.,]+).wa/i);
+
+			console.log(sysinfo);
 
 		
 		if(match != null) {
 			obj.cpu = {
-				'user':   match[1]*1, // user (percent)
-				'system': match[2]*1, // system (percent)
-				'nice':   match[3]*1, // nice (percent)
-				'idle':   match[4]*1, // idle (percent)
-				'iowait': match[5]*1  // iowait (percent)
+				'user':   fixComma(match[1])*1, // user (percent)
+				'system': fixComma(match[2])*1, // system (percent)
+				'nice':   fixComma(match[3])*1, // nice (percent)
+				'idle':   fixComma(match[4])*1, // idle (percent)
+				'iowait': fixComma(match[5])*1  // iowait (percent)
 			};
+			
+			console.log(JSON.stringify(obj.cpu));
 		}
+		
 		
 		var proctable_lines = proctable.split('\n');
 		var cpuForPid = {};
+		
 		proctable_lines.forEach(function(line, index, array) {
 			if(index == 0) return; // header
 			
 			var pid = line.substring(0, 5).trim()*1;
-			var cpu = line.substring(40, 45).trim()*1;
+			var cpu = fixComma(line.substring(40, 46).trim())*1;
 			
 			cpuForPid[pid] = cpu;
 		});
@@ -414,14 +451,14 @@ function taskCpu(callback, obj) {
 		obj.proc.entries.forEach(function(entry, index, array) {
 			var cpu = cpuForPid[entry.pid];
 			
-			if(cpu !== undefined)
+			if(cpu !== undefined) {
 				entry.pcpu = cpu / obj.cores.length; // divide load by number of cores
+			}
 		});
 		
 		callback(obj);
 	});
 }
-
 
 function taskSensors(callback, obj) {
 	exec('sensors' + (FAHR ? ' -f' : ''), function(err, stdout, stderr) {
@@ -437,7 +474,7 @@ function taskSensors(callback, obj) {
 		};
 		
 		lines.forEach(function(line, index, array) {
-			var match = line.match(/([a-z0-9_\-. ,]+):\s*([^(]+)\(/i);
+			var match = line.match(/([a-z0-9_\-. ,]+):\s*([0-9A-Za-z/\-+°.,]+)/i);
 			if(match == null) return;
 			
 			var name = match[1].trim();
@@ -486,14 +523,14 @@ function taskUptime(callback, obj) {
 	exec('uptime', function(err, stdout, stderr) {
 		
 		stdout = stdout.trim();
-		var match = stdout.match(/.*up\s*(.*?),\s*([0-9]+\s+users?),\s*load averages?:\s*([0-9.]+),\s*([0-9.]+),\s*([0-9.]+).*/i);
+		var match = stdout.match(/.*up\s*(.*?),\s*([0-9]+\s+users?),\s*load averages?:\s*([0-9]+[.,][0-9]+),\s*([0-9]+[.,][0-9]+),\s*([0-9]+[.,][0-9]+).*/i);
 
 		if(match != null) {
 			obj.system.uptime = match[1];
 			obj.system.users = match[2];
-			obj.system.load1 = Math.round((match[3]/obj.cores.length)*1000)/10;
-			obj.system.load5 = Math.round((match[4]/obj.cores.length)*1000)/10;
-			obj.system.load15 = Math.round((match[5]/obj.cores.length)*1000)/10;
+			obj.system.load1 = Math.round((fixComma(match[3])/obj.cores.length)*1000)/10;
+			obj.system.load5 = Math.round((fixComma(match[4])/obj.cores.length)*1000)/10;
+			obj.system.load15 = Math.round((fixComma(match[5])/obj.cores.length)*1000)/10;
 		}
 		
 		callback(obj);
