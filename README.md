@@ -31,17 +31,18 @@ All requires modules are specified in `package.json`, so `npm` will take care of
 
 **External programs**
 
-*(Specified version is known to work)*
+You need those programs in order to run Nodemon; they are used to gather the system info.
 
-- `ps`, `vmstat`, `uptime`, `top` (package `procps`)  >= 3.2.8
-- `uname` (package `coreutils`) >= 8.13
-- `curl` >= 7.22.0
-- `grep` >= 2.10
-- `df` >= 8.3
-- `sensors` >= 3.3.1
+- `sensors` (package `lm-sensors`)
+- `mpstat` (package `sysstat`)
+- `curl`
 
-- `/proc/cpuinfo` must provide info about CPU cores
+Plus those, but they are probably present in all distros:
 
+- `ps`, `vmstat`, `uptime`, `top`
+- `uname`
+- `grep`
+- `df`
 
 Usage
 -----
