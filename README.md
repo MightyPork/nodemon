@@ -18,8 +18,8 @@ Dependencies
 
 **Node.js**
 
-- `node` >= 0.10.24
-- `npm` >= 1.3.21
+- `node`
+- `npm`
 
 All requires modules are specified in `package.json`, so `npm` will take care of that.
 
